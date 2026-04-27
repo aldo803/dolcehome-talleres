@@ -52,3 +52,20 @@ function dh_talleres_init() {
     DH_Talleres::get_instance();
 }
 add_action( 'plugins_loaded', 'dh_talleres_init' );
+
+// =============================
+// SISTEMA DE ACTUALIZACIONES
+// =============================
+
+require_once DH_TALLERES_PATH . 'plugin-update-checker/plugin-update-checker.php';
+
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$updateChecker = PucFactory::buildUpdateChecker(
+    'https://github.com/aldo803/dolcehome-talleres/',
+    __FILE__,
+    'dolcehome-talleres'
+);
+
+// Usar releases de GitHub
+$updateChecker->getVcsApi()->enableReleaseAssets();
