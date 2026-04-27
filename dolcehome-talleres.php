@@ -3,7 +3,7 @@
  * Plugin Name: Dolce Home Talleres
  * Plugin URI:  https://talleres.dolcehome.uy
  * Description: Sistema de registro y venta de talleres de mantas de lana XXL para Dolce Home.
- * Version:     1.6.0
+ * Version:     1.6.1
  * Author:      Dolce Home
  * Text Domain: dh-talleres
  * Requires at least: 6.0
@@ -67,5 +67,5 @@ $updateChecker = PucFactory::buildUpdateChecker(
     'dolcehome-talleres'
 );
 
-// Usar releases de GitHub
-$updateChecker->getVcsApi()->enableReleaseAssets();
+// CLAVE:
+$updateChecker->getVcsApi()->enableReleaseAssets('/\.zip$/i');
