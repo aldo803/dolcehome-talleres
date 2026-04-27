@@ -532,3 +532,48 @@
   .dh-chart-inner      { flex-direction: column; }
   .dh-vista-lista .dh-taller-card { grid-template-columns: 1fr; }
 }
+
+/* ── v1.6 — Botón reenviar email ── */
+.dh-action-email {
+    color: #2271b1;
+    border-color: #c5d9f0;
+    background: #f0f7ff;
+}
+.dh-action-email:hover {
+    background: #2271b1;
+    color: #fff;
+    border-color: #2271b1;
+}
+
+/* ── v1.6 — Gráficos lado a lado ── */
+.dh-chart-wrap {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 0 0 24px;
+}
+.dh-chart-card {
+    background: #fff;
+    border: 1px solid #e8e0d8;
+    border-radius: 10px;
+    padding: 20px 24px;
+    flex: 1;
+    min-width: 280px;
+    max-width: 420px;
+}
+
+/* ── v1.6 — Papelera vacía ── */
+.dh-trash-empty {
+    background: #fafafa;
+    border: 1px dashed #ddd;
+    border-radius: 8px;
+    padding: 28px 20px;
+    text-align: center;
+    color: #aaa;
+    margin-bottom: 20px;
+}
+
+/* ── v1.6 — Botón restaurar en papelera ── */
+.dh-action-confirm .dashicons-undo {
+    vertical-align: text-bottom;
+}

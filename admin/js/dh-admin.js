@@ -1,6 +1,10 @@
 /**
- * DH Talleres — Admin JS v1.5
- * Todo dentro de un único wrapper jQuery para que $ esté disponible en todas las funciones.
+ * DH Talleres — Admin JS v1.6
+ * BUG FIX: modal de edición usa string serializado puro (evita mezcla objeto+string)
+ * NEW: selector de taller y materiales en modal edición
+ * NEW: botón reenviar email con confirmación
+ * NEW: gráfico Seña/Total/Cortesía
+ * NEW: papelera — restaurar / purgar inscripciones y talleres
  */
 (function ($) {
   'use strict';
@@ -10,9 +14,6 @@
   ═══════════════════════════════════════════════ */
   function dhEsc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-  function dhFmtNum(n) {
-    return Number(n || 0).toLocaleString('es-UY', { minimumFractionDigits:0, maximumFractionDigits:0 });
   }
   function dhFlash(el, msg) {
     var orig = el.textContent;
@@ -40,11 +41,8 @@
       navigator.clipboard.writeText(text).then(function () { dhFlash(el, '✅ Copiado'); });
     } else {
       var tmp = document.createElement('textarea');
-      tmp.value = text;
-      document.body.appendChild(tmp);
-      tmp.select();
-      document.execCommand('copy');
-      document.body.removeChild(tmp);
+      tmp.value = text; document.body.appendChild(tmp); tmp.select();
+      document.execCommand('copy'); document.body.removeChild(tmp);
       dhFlash(el, '✅ Copiado');
     }
   };
@@ -58,31 +56,25 @@
     if (url.indexOf('/embed') !== -1) {
       $wrap.html('<div class="dh-maps-preview"><iframe src="' + url + '" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>').show();
     } else {
-      $wrap.html('<div style="margin-top:8px;"><a href="' + url + '" target="_blank" class="button button-small">🗺️ Ver en Google Maps</a><br><small style="color:#888;font-size:11px;margin-top:4px;display:block;">Para embed, usá la URL de "Compartir → Insertar mapa" de Google Maps.</small></div>').show();
+      $wrap.html('<div style="margin-top:8px;"><a href="' + url + '" target="_blank" class="button button-small">🗺️ Ver en Google Maps</a><br><small style="color:#888;font-size:11px;margin-top:4px;display:block;">Para embed, usá la URL de "Compartir → Insertar mapa".</small></div>').show();
     }
   }
   $(document).on('input change', '#dh_maps_url', function () { dhPreviewMaps($(this).val()); });
   $(function () { if ($('#dh_maps_url').length && $('#dh_maps_url').val()) dhPreviewMaps($('#dh_maps_url').val()); });
 
   /* ═══════════════════════════════════════════════
-     DASHBOARD TALLERES: ORDENAR Y VISTA
+     DASHBOARD: ORDENAR Y VISTA
   ═══════════════════════════════════════════════ */
   window.dhOrdenar = function (criterio) {
-    var $grid   = $('#dh-talleres-grid');
-    var $cards  = $grid.find('.dh-taller-card').toArray();
-
+    var $grid  = $('#dh-talleres-grid');
+    var $cards = $grid.find('.dh-taller-card').toArray();
     $cards.sort(function (a, b) {
       var va = $(a).data(criterio) || '';
       var vb = $(b).data(criterio) || '';
-      if (criterio === 'fecha') {
-        return new Date(va || '9999') - new Date(vb || '9999');
-      }
+      if (criterio === 'fecha') return new Date(va || '9999') - new Date(vb || '9999');
       return String(va).localeCompare(String(vb), 'es');
     });
-
     $cards.forEach(function (c) { $grid.append(c); });
-
-    // Resaltar botón activo
     $('.dh-sort-btn').removeClass('active');
     $('.dh-sort-btn[data-sort="' + criterio + '"]').addClass('active');
   };
@@ -94,17 +86,12 @@
     $('.dh-view-btn[data-view="' + vista + '"]').addClass('active');
     try { localStorage.setItem('dh_vista', vista); } catch(e) {}
   };
-
-  // Restaurar vista guardada
   $(function () {
-    try {
-      var saved = localStorage.getItem('dh_vista');
-      if (saved) dhSetVista(saved);
-    } catch(e) {}
+    try { var saved = localStorage.getItem('dh_vista'); if (saved) dhSetVista(saved); } catch(e) {}
   });
 
   /* ═══════════════════════════════════════════════
-     MODAL: AGREGAR TIPO DE PRODUCTO
+     MODAL: TIPO DE PRODUCTO
   ═══════════════════════════════════════════════ */
   var $tipoModal;
   $(function () { $tipoModal = $('#dh-add-tipo-modal'); });
@@ -175,121 +162,84 @@
     e.preventDefault();
     var slugM  = (window.location.search.match(/[?&]tipo=([^&]+)/)     || [])[1] || '';
     var campoM = (window.location.search.match(/[?&]variante=([^&]+)/) || [])[1] || 'colores';
-    dhAgregarTipoVariante(slugM, campoM);
+    if (slugM) dhAgregarTipoVariante(slugM, campoM);
   });
 
-  /* ═══════════════════════════════════════════════
-     MEDIDAS (con precios)
-  ═══════════════════════════════════════════════ */
+  window.dhEliminarVariante = function (slug, campo, valor) {
+    if (!confirm('¿Eliminar "' + valor + '"?')) return;
+    $.post(dhAdmin.ajax_url,
+      { action:'dh_delete_tipo_variante', nonce:dhAdmin.nonce, slug:slug, campo:campo, valor:valor },
+      function (res) {
+        if (res.success) dhRenderVarianteList(slug, campo, res.data.tipo[campo]);
+        else alert('Error al eliminar.');
+      }
+    ).fail(function () { alert('Error de conexión.'); });
+  };
+
+  function dhRenderVarianteList(slug, campo, items) {
+    var $list = $('#dh-variante-list');
+    if (!$list.length) return;
+    if (!items || !items.length) { $list.html('<span style="color:#aaa;font-size:13px;">Sin opciones todavía.</span>'); return; }
+    var html = '<div class="dh-variante-tags">';
+    items.forEach(function (v) {
+      html += '<span class="dh-variante-tag">' + dhEsc(v)
+           + '<button type="button" class="dh-var-del-btn" onclick="dhEliminarVariante(\'' + dhEsc(slug) + '\',\'' + dhEsc(campo) + '\',\'' + dhEsc(v) + '\')" title="Eliminar">✕</button></span>';
+    });
+    html += '</div>';
+    $list.html(html);
+  }
+
   window.dhAgregarMedida = function (slug) {
     var nombre = $('#dh-medida-nombre').val().trim();
-    var pSena  = parseFloat($('#dh-medida-precio-sena').val())  || 0;
-    var pTotal = parseFloat($('#dh-medida-precio-total').val()) || 0;
+    var precio = $('#dh-medida-precio').val().trim();
     if (!nombre) { $('#dh-medida-nombre').css('border-color','#dc3232').focus(); return; }
-    $('#dh-medida-nombre').css('border-color','');
+    $('#dh-medida-nombre,#dh-medida-precio').css('border-color','');
     $.post(dhAdmin.ajax_url,
-      { action:'dh_save_tipo_variante', nonce:dhAdmin.nonce, slug:slug, campo:'medidas',
-        nombre:nombre, precio_sena:pSena, precio_total:pTotal },
+      { action:'dh_save_medida', nonce:dhAdmin.nonce, slug:slug, nombre:nombre, precio:precio },
       function (res) {
         if (res.success) {
-          dhRenderMedidasTable(slug, res.data.tipo['medidas']);
-          $('#dh-medida-nombre, #dh-medida-precio-sena, #dh-medida-precio-total').val('');
+          dhRenderMedidaList(slug, res.data.tipo.medidas);
+          $('#dh-medida-nombre').val(''); $('#dh-medida-precio').val('');
+          $('#dh-medida-nombre').focus();
         } else alert((res.data && res.data.msg) || 'Error.');
       }
     ).fail(function () { alert('Error de conexión.'); });
   };
 
-  /* ═══════════════════════════════════════════════
-     ELIMINAR VARIANTE / MEDIDA
-  ═══════════════════════════════════════════════ */
-  window.dhEliminarTipoVariante = function (slug, campo, index, btn) {
-    if (!confirm('¿Eliminás esta opción?')) return;
-    $(btn).closest(campo === 'medidas' ? 'tr' : '.dh-variante-item').css('opacity', .5);
+  window.dhEliminarMedida = function (slug, nombre) {
+    if (!confirm('¿Eliminar medida "' + nombre + '"?')) return;
     $.post(dhAdmin.ajax_url,
-      { action:'dh_delete_tipo_variante', nonce:dhAdmin.nonce, slug:slug, campo:campo, index:index },
+      { action:'dh_delete_medida', nonce:dhAdmin.nonce, slug:slug, nombre:nombre },
       function (res) {
-        if (res.success) {
-          if (campo === 'medidas') dhRenderMedidasTable(slug, res.data.tipo['medidas']);
-          else dhRenderVarianteList(slug, campo, res.data.tipo[campo]);
-        } else {
-          $(btn).closest('tr, .dh-variante-item').css('opacity', 1);
-          alert('Error al eliminar.');
-        }
+        if (res.success) dhRenderMedidaList(slug, res.data.tipo.medidas);
+        else alert('Error al eliminar.');
       }
-    ).fail(function () { $(btn).closest('tr, .dh-variante-item').css('opacity', 1); alert('Error de conexión.'); });
+    ).fail(function () { alert('Error de conexión.'); });
   };
 
-  function dhRenderVarianteList(slug, campo, lista) {
-    var $list = $('#dh-variante-list-' + slug + '-' + campo);
+  function dhRenderMedidaList(slug, medidas) {
+    var $list = $('#dh-medidas-list');
     if (!$list.length) return;
-    if (!lista || !lista.length) { $list.html('<div class="dh-variante-empty">Sin opciones configuradas.</div>'); return; }
-    $list.html(lista.map(function (v, i) {
-      return '<div class="dh-variante-item">'
-        + '<span class="dh-variante-handle dashicons dashicons-menu"></span>'
-        + '<span class="dh-variante-nombre">' + dhEsc(v) + '</span>'
-        + '<button class="dh-variante-delete" onclick="dhEliminarTipoVariante(\'' + slug + '\',\'' + campo + '\',' + i + ',this)">'
-        + '<span class="dashicons dashicons-trash"></span></button></div>';
-    }).join(''));
-    $('.dh-subtab[href*="variante=' + campo + '"] .dh-subtab-count').text(lista.length);
-  }
-
-  function dhRenderMedidasTable(slug, medidas) {
-    var $tbody = $('#dh-medidas-table-' + slug + ' tbody');
-    if (!$tbody.length) return;
-    if (!medidas || !medidas.length) {
-      $tbody.html('<tr class="dh-medidas-empty"><td colspan="4">Sin medidas configuradas.</td></tr>'); return;
-    }
-    $tbody.html(medidas.map(function (m, i) {
-      return '<tr data-index="' + i + '">'
-        + '<td><strong>' + dhEsc(m.nombre) + '</strong></td>'
-        + '<td><span class="dh-price-tag">$' + dhFmtNum(m.precio_sena) + '</span></td>'
-        + '<td><span class="dh-price-tag dh-price-total-tag">$' + dhFmtNum(m.precio_total) + '</span></td>'
-        + '<td><button class="dh-variante-delete" onclick="dhEliminarTipoVariante(\'' + slug + '\',\'medidas\',' + i + ',this)">'
-        + '<span class="dashicons dashicons-trash"></span></button></td></tr>';
-    }).join(''));
-    $('.dh-subtab[href*="variante=medidas"] .dh-subtab-count').text(medidas.length);
+    if (!medidas || !medidas.length) { $list.html('<span style="color:#aaa;font-size:13px;">Sin medidas todavía.</span>'); return; }
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+             + '<thead><tr><th style="text-align:left;padding:4px 8px;border-bottom:1px solid #ddd;color:#666;">Medida</th>'
+             + '<th style="text-align:left;padding:4px 8px;border-bottom:1px solid #ddd;color:#666;">Precio extra</th><th></th></tr></thead><tbody>';
+    medidas.forEach(function (m) {
+      html += '<tr>'
+            + '<td style="padding:6px 8px;">' + dhEsc(m.nombre) + '</td>'
+            + '<td style="padding:6px 8px;">' + (m.precio ? '+$' + dhEsc(String(m.precio)) : '—') + '</td>'
+            + '<td style="padding:6px 8px;"><button type="button" class="dh-var-del-btn" onclick="dhEliminarMedida(\'' + dhEsc(slug) + '\',\'' + dhEsc(m.nombre) + '\')">✕</button></td>'
+            + '</tr>';
+    });
+    html += '</tbody></table>';
+    $list.html(html);
   }
 
   /* ═══════════════════════════════════════════════
-     VALIDACIONES GENERALES
-  ═══════════════════════════════════════════════ */
-  $(function () {
-    $(document).on('click', '.submitdelete', function (e) {
-      if (!confirm('¿Eliminás este taller? No se puede deshacer.')) e.preventDefault();
-    });
-
-    $('form#post').on('submit', function (e) {
-      if ($('body').hasClass('post-type-dh_taller') && !$('#dh_fecha').val()) {
-        alert('Por favor ingresá la fecha del taller antes de guardar.');
-        e.preventDefault();
-        var firstTab = document.querySelector('.dh-meta-tab');
-        if (firstTab) dhTab('general', firstTab);
-        setTimeout(function () { $('#dh_fecha').css('border-color','#dc3232').focus(); }, 100);
-      }
-    });
-    $('#dh_fecha').on('input', function () { $(this).css('border-color',''); });
-
-    $('form.dh-manual-form').on('submit', function (e) {
-      var ok = true;
-      $(this).find('[required]').each(function () {
-        if (!$(this).val()) { $(this).css('border-color','#dc3232'); ok = false; }
-        else $(this).css('border-color','');
-      });
-      if (!ok) { e.preventDefault(); alert('Completá todos los campos obligatorios.'); }
-    });
-    $(document).on('input change', 'form.dh-manual-form [required]', function () {
-      if ($(this).val()) $(this).css('border-color','');
-    });
-
-    // Spinner CSS
-    $('<style>.spin{animation:dhSpin .7s linear infinite;display:inline-block;}@keyframes dhSpin{to{transform:rotate(360deg);}}</style>').appendTo('head');
-  });
-
-  /* ═══════════════════════════════════════════════
-     ACCIONES INSCRIPCIONES
+     ACCIONES DE INSCRIPCIONES
   ═══════════════════════════════════════════════ */
 
-  // ── Modal de edición ────────────────────────
+  // ── Modal de edición ────────────────────────────
   var $editOverlay;
   $(function () { $editOverlay = $('#dh-edit-modal-overlay'); });
 
@@ -303,29 +253,71 @@
       { action:'dh_get_inscripcion', nonce:dhAdmin.nonce, id:id },
       function (res) {
         if (!res.success) { alert(res.data.msg || 'Error.'); dhCloseEditModal(); return; }
-        var d = res.data;
+        var d            = res.data;
+        var talleres     = d.talleres     || [];
+        var tiposMap     = d.taller_tipos_map || {};
+        var tiposProducto= d.tipos_producto  || (dhAdmin.tipos || []);
 
+        // ── Select de talleres ──────────────────────
+        var tallerOpts = '<option value="">— Seleccioná —</option>';
+        talleres.forEach(function (t) {
+          tallerOpts += '<option value="' + t.id + '"' + (t.id == d.taller_id ? ' selected' : '') + '>' + dhEsc(t.title) + '</option>';
+        });
+
+        // ── Opciones iniciales de variantes según taller actual ──
+        function optsFor(campo, current) {
+          var tipoSlug = tiposMap[d.taller_id] || '';
+          var tipo = tiposProducto.find ? tiposProducto.find(function(t){ return t.slug === tipoSlug; }) : null;
+          if (!tipo && tiposProducto.length) tipo = tiposProducto[0];
+          var lista = (tipo && tipo[campo]) ? tipo[campo] : [];
+          var out = '<option value="">— Sin especificar —</option>';
+          lista.forEach(function(item){
+            var val = typeof item === 'object' ? item.nombre : item;
+            out += '<option value="' + dhEsc(val) + '"' + (val === current ? ' selected' : '') + '>' + dhEsc(val) + '</option>';
+          });
+          return out;
+        }
+
+        var vv       = d.variantes || {};
         var html = '<form id="dh-edit-form">'
           + '<div class="dh-edit-grid">'
-          + '<div class="dh-edit-section-title">👤 Datos del alumno</div>'
-          + '<div class="dh-form-group"><label>Nombre completo *</label><input type="text" name="nombre" value="' + dhEsc(d.nombre) + '" required></div>'
-          + '<div class="dh-form-group"><label>Email *</label><input type="email" name="email" value="' + dhEsc(d.email) + '" required></div>'
-          + '<div class="dh-form-group"><label>Teléfono</label><input type="tel" name="telefono" value="' + dhEsc(d.telefono || '') + '"></div>'
-          + '<div class="dh-edit-section-title">📋 Inscripción</div>'
+
+          // ── Taller ──────────────────────────────────
+          + '<div class="dh-edit-section-title" style="grid-column:1/-1">📋 Inscripción</div>'
+          + '<div class="dh-form-group"><label>Taller</label>'
+          + '<select name="taller_id" id="dh-edit-taller-sel">' + tallerOpts + '</select></div>'
+
           + '<div class="dh-form-group"><label>Turno</label><select name="turno">'
           + '<option value="matutino"'  + (d.turno === 'matutino'   ? ' selected' : '') + '>☀️ Matutino</option>'
           + '<option value="vespertino"'+ (d.turno === 'vespertino' ? ' selected' : '') + '>🌇 Vespertino</option>'
           + '</select></div>'
+
           + '<div class="dh-form-group"><label>Tipo de pago</label><select name="tipo_pago">'
           + '<option value="sena"'     + (d.tipo_pago === 'sena'     ? ' selected' : '') + '>💰 Seña</option>'
           + '<option value="total"'    + (d.tipo_pago === 'total'    ? ' selected' : '') + '>✅ Total</option>'
           + '<option value="cortesia"' + (d.tipo_pago === 'cortesia' ? ' selected' : '') + '>🎁 Cortesía</option>'
           + '</select></div>'
-          + '<div class="dh-form-group dh-edit-full"><label>Notas internas</label><textarea name="notas" rows="3">' + dhEsc(d.notas || '') + '</textarea></div>'
+
+          // ── Alumno ──────────────────────────────────
+          + '<div class="dh-edit-section-title" style="grid-column:1/-1">👤 Datos del alumno</div>'
+          + '<div class="dh-form-group"><label>Nombre completo *</label><input type="text" name="nombre" value="' + dhEsc(d.nombre) + '" required></div>'
+          + '<div class="dh-form-group"><label>Email *</label><input type="email" name="email" value="' + dhEsc(d.email) + '" required></div>'
+          + '<div class="dh-form-group"><label>Teléfono</label><input type="tel" name="telefono" value="' + dhEsc(d.telefono || '') + '"></div>'
+
+          // ── Material ────────────────────────────────
+          + '<div class="dh-edit-section-title" style="grid-column:1/-1">🎨 Material</div>'
+          + '<div class="dh-form-group"><label>🎨 Color</label><select name="variante_color" id="dh-edit-var-color">' + optsFor('colores', vv.color||'') + '</select></div>'
+          + '<div class="dh-form-group"><label>🧶 Tipo de lana</label><select name="variante_tipo_lana" id="dh-edit-var-tipo_lana">' + optsFor('tipos_lana', vv.tipo_lana||'') + '</select></div>'
+          + '<div class="dh-form-group"><label>🔬 Micras</label><select name="variante_micras" id="dh-edit-var-micras">' + optsFor('micras', vv.micras||'') + '</select></div>'
+          + '<div class="dh-form-group"><label>📏 Medida</label><select name="variante_medida" id="dh-edit-var-medida">' + optsFor('medidas', vv.medida||'') + '</select></div>'
+
+          // ── Notas ───────────────────────────────────
+          + '<div class="dh-form-group dh-edit-full"><label>📝 Notas internas</label><textarea name="notas" rows="3">' + dhEsc(d.notas || '') + '</textarea></div>'
+
           + '</div>'
           + '<div id="dh-edit-error" class="dh-form-error" style="display:none;margin-top:12px;"></div>'
           + '<div style="display:flex;gap:10px;margin-top:20px;">'
-          + '<button type="submit" class="dh-btn dh-btn-primary">💾 Guardar cambios</button>'
+          + '<button type="submit" class="dh-btn dh-btn-primary" id="dh-edit-save-btn">💾 Guardar cambios</button>'
           + '<button type="button" class="dh-btn dh-btn-ghost" onclick="dhCloseEditModal()">Cancelar</button>'
           + '</div>'
           + '<input type="hidden" name="id" value="' + id + '">'
@@ -333,18 +325,47 @@
 
         $('#dh-edit-modal-body').html(html);
 
+        // ── Recarga de variantes al cambiar taller ──
+        $('#dh-edit-taller-sel').on('change', function () {
+          var tid = $(this).val();
+          var tipoSlug = tiposMap[tid] || '';
+          var tipo = tiposProducto.find ? tiposProducto.find(function(t){ return t.slug===tipoSlug; }) : null;
+          if (!tipo && tiposProducto.length) tipo = tiposProducto[0];
+          var campoMap = { color:'colores', tipo_lana:'tipos_lana', micras:'micras', medida:'medidas' };
+          Object.keys(campoMap).forEach(function(k){
+            var $sel = $('#dh-edit-var-' + k);
+            var lista = (tipo && tipo[campoMap[k]]) ? tipo[campoMap[k]] : [];
+            var opts = '<option value="">— Sin especificar —</option>';
+            lista.forEach(function(item){
+              var val = typeof item==='object' ? item.nombre : item;
+              opts += '<option value="' + dhEsc(val) + '">' + dhEsc(val) + '</option>';
+            });
+            $sel.html(opts);
+          });
+        });
+
+        // ── Submit — BUG FIX: envío como string serializado puro ──
         $('#dh-edit-form').on('submit', function (e) {
           e.preventDefault();
-          var $btn = $(this).find('[type=submit]');
+          var $btn = $('#dh-edit-save-btn');
           $btn.prop('disabled', true).text('Guardando…');
           $('#dh-edit-error').hide();
-          $.post(dhAdmin.ajax_url,
-            $.extend({ action:'dh_editar_inscripcion', nonce:dhAdmin.nonce }, $(this).serialize()),
-            function (r) {
-              if (r.success) { dhCloseEditModal(); location.reload(); }
-              else { $('#dh-edit-error').text(r.data.msg || 'Error.').show(); $btn.prop('disabled', false).html('💾 Guardar cambios'); }
+
+          // Serializar el form como string y agregar action+nonce al final
+          var params = $(this).serialize()
+                     + '&action=dh_editar_inscripcion'
+                     + '&nonce=' + encodeURIComponent(dhAdmin.nonce);
+
+          $.post(dhAdmin.ajax_url, params, function (r) {
+            if (r.success) { dhCloseEditModal(); location.reload(); }
+            else {
+              $('#dh-edit-error').text(r.data && r.data.msg ? r.data.msg : 'Error al guardar.').show();
+              $btn.prop('disabled', false).html('💾 Guardar cambios');
             }
-          ).fail(function () { $('#dh-edit-error').text('Error de conexión.').show(); $btn.prop('disabled', false).html('💾 Guardar cambios'); });
+          }).fail(function () {
+            $('#dh-edit-error').text('Error de conexión.').show();
+            $btn.prop('disabled', false).html('💾 Guardar cambios');
+          });
         });
       }
     ).fail(function () { alert('Error de conexión.'); dhCloseEditModal(); });
@@ -359,7 +380,19 @@
     if ($(e.target).is('#dh-edit-modal-overlay')) dhCloseEditModal();
   });
 
-  // ── Cambiar estado ──────────────────────────
+  // ── Reenviar email ──────────────────────────────
+  window.dhReenviarEmail = function (id, email) {
+    if (!confirm('¿Reenviar el email de inscripción a ' + email + '?\n\nEl alumno recibirá nuevamente la confirmación con los datos de su inscripción.')) return;
+    $.post(dhAdmin.ajax_url,
+      { action:'dh_reenviar_email', nonce:dhAdmin.nonce, id:id },
+      function (res) {
+        if (res.success) alert('✅ ' + (res.data.msg || 'Email reenviado correctamente.'));
+        else alert('❌ ' + (res.data && res.data.msg ? res.data.msg : 'Error al reenviar.'));
+      }
+    ).fail(function () { alert('Error de conexión.'); });
+  };
+
+  // ── Cambiar estado ───────────────────────────────
   window.dhCambiarEstado = function (id, estado) {
     var msgs = { confirmado:'¿Confirmar esta inscripción?', cancelado:'¿Cancelar esta inscripción?' };
     if (!confirm(msgs[estado] || '¿Continuar?')) return;
@@ -372,9 +405,9 @@
     ).fail(function () { alert('Error de conexión.'); });
   };
 
-  // ── Eliminar inscripción ────────────────────
+  // ── Eliminar inscripción (soft delete) ───────────
   window.dhEliminarInscripcion = function (id) {
-    if (!confirm('¿Eliminar este registro? Se repondrá el cupo y se cancelará el pedido WooCommerce si existe.')) return;
+    if (!confirm('¿Mover este registro a la papelera?\n\nSe repondrá el cupo y se cancelará el pedido WooCommerce si existe.\nPodrás restaurarlo desde la sección Papelera.')) return;
     $.post(dhAdmin.ajax_url,
       { action:'dh_eliminar_inscripcion', nonce:dhAdmin.nonce, id:id },
       function (res) {
@@ -385,10 +418,35 @@
   };
 
   /* ═══════════════════════════════════════════════
+     PAPELERA — INSCRIPCIONES
+  ═══════════════════════════════════════════════ */
+  window.dhRestaurarInscripcion = function (id) {
+    if (!confirm('¿Restaurar esta inscripción?\n\nVolverá a la lista de alumnos con estado "Cancelado". Podés reactivarla desde allí.')) return;
+    $.post(dhAdmin.ajax_url,
+      { action:'dh_restaurar_inscripcion', nonce:dhAdmin.nonce, id:id },
+      function (res) {
+        if (res.success) { alert('✅ ' + res.data.msg); $('#dh-trash-insc-' + id).fadeOut(300, function(){ $(this).remove(); }); }
+        else alert(res.data.msg || 'Error.');
+      }
+    ).fail(function () { alert('Error de conexión.'); });
+  };
+
+  window.dhPurgarInscripcion = function (id) {
+    if (!confirm('⚠️ ¿Eliminar DEFINITIVAMENTE esta inscripción?\n\nEsta acción no se puede deshacer.')) return;
+    $.post(dhAdmin.ajax_url,
+      { action:'dh_purgar_inscripcion', nonce:dhAdmin.nonce, id:id },
+      function (res) {
+        if (res.success) { $('#dh-trash-insc-' + id).fadeOut(300, function(){ $(this).remove(); }); }
+        else alert(res.data.msg || 'Error.');
+      }
+    ).fail(function () { alert('Error de conexión.'); });
+  };
+
+  /* ═══════════════════════════════════════════════
      ACCIONES TALLERES
   ═══════════════════════════════════════════════ */
   window.dhEliminarTallerDashboard = function (id, nombre) {
-    if (!confirm('¿Eliminás el taller "' + nombre + '"? El taller pasará a la papelera de WordPress.')) return;
+    if (!confirm('¿Mover el taller "' + nombre + '" a la papelera?\n\nPodrás restaurarlo desde la sección Papelera.')) return;
     $.post(dhAdmin.ajax_url,
       { action:'dh_eliminar_taller', nonce:dhAdmin.nonce, id:id },
       function (res) {
@@ -412,30 +470,30 @@
   };
 
   /* ═══════════════════════════════════════════════
-     GRÁFICA DE INSCRIPCIONES (v1.5)
+     PAPELERA — TALLERES
   ═══════════════════════════════════════════════ */
-  $(function () {
-    var $canvas = $('#dh-chart-inscripciones');
-    if (!$canvas.length) return;
+  window.dhRestaurarTaller = function (id) {
+    if (!confirm('¿Restaurar este taller?')) return;
+    $.post(dhAdmin.ajax_url,
+      { action:'dh_restaurar_taller', nonce:dhAdmin.nonce, id:id },
+      function (res) {
+        if (res.success) { alert('✅ Taller restaurado.'); $('#dh-trash-taller-' + id).fadeOut(300, function(){ $(this).remove(); }); }
+        else alert(res.data.msg || 'Error.');
+      }
+    ).fail(function () { alert('Error de conexión.'); });
+  };
 
-    var confirmados = parseInt($canvas.data('confirmados')) || 0;
-    var pendientes  = parseInt($canvas.data('pendientes'))  || 0;
-    var cancelados  = parseInt($canvas.data('cancelados'))  || 0;
-    var total       = confirmados + pendientes + cancelados;
-
-    if (total === 0) { $canvas.closest('.dh-chart-wrap').hide(); return; }
-
-    var canvas  = $canvas[0];
-    var ctx     = canvas.getContext('2d');
-    var size    = 180;
-    canvas.width  = size;
-    canvas.height = size;
-
-    var cx = size / 2, cy = size / 2, r = 76, ri = 44;
-    var data   = [confirmados, pendientes, cancelados];
-    var colors = ['#3a9966', '#d97706', '#c0392b'];
-    var start  = -Math.PI / 2;
-
+  /* ═══════════════════════════════════════════════
+     GRÁFICAS DE INSCRIPCIONES (v1.5 + v1.6)
+  ═══════════════════════════════════════════════ */
+  function dhDrawDonut(canvas, data, colors) {
+    var ctx   = canvas.getContext('2d');
+    var size  = 180;
+    canvas.width = size; canvas.height = size;
+    var cx = size/2, cy = size/2, r = 76, ri = 44;
+    var total = data.reduce(function(s,v){ return s+v; }, 0);
+    if (total === 0) return;
+    var start = -Math.PI / 2;
     data.forEach(function (val, idx) {
       if (!val) return;
       var slice = (val / total) * 2 * Math.PI;
@@ -447,19 +505,38 @@
       ctx.fill();
       start += slice;
     });
-
     // Donut hole
-    ctx.beginPath();
-    ctx.arc(cx, cy, ri, 0, 2 * Math.PI);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
-
+    ctx.beginPath(); ctx.arc(cx, cy, ri, 0, 2*Math.PI);
+    ctx.fillStyle = '#fff'; ctx.fill();
     // Número central
     ctx.fillStyle = '#2c2020';
     ctx.font = 'bold 22px -apple-system,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(total, cx, cy);
+  }
+
+  $(function () {
+    // Gráfico 1 — Distribución por estado
+    var $c1 = $('#dh-chart-inscripciones');
+    if ($c1.length) {
+      var conf  = parseInt($c1.data('confirmados')) || 0;
+      var pend  = parseInt($c1.data('pendientes'))  || 0;
+      var canc  = parseInt($c1.data('cancelados'))  || 0;
+      if (conf + pend + canc > 0) {
+        dhDrawDonut($c1[0], [conf, pend, canc], ['#3a9966','#d97706','#c0392b']);
+      } else { $c1.closest('.dh-chart-wrap').hide(); }
+    }
+
+    // Gráfico 2 — Distribución por tipo de pago
+    var $c2 = $('#dh-chart-pagos');
+    if ($c2.length) {
+      var sena     = parseInt($c2.data('sena'))     || 0;
+      var total    = parseInt($c2.data('total'))    || 0;
+      var cortesia = parseInt($c2.data('cortesia')) || 0;
+      if (sena + total + cortesia > 0) {
+        dhDrawDonut($c2[0], [sena, total, cortesia], ['#8B5E3C','#2271b1','#6d3fc0']);
+      }
+    }
   });
 
 })(jQuery);

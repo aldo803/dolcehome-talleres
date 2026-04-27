@@ -1,6 +1,8 @@
 <?php
 /**
- * DH_Talleres v1.3
+ * DH_Talleres v1.6
+ * – Columna deleted_at para papelera de reciclaje de inscripciones
+ * – maybe_add_columns() explícito para migraciones seguras
  * – DB fix: TEXT NULL (compatible MySQL 5.7+), columna tipo_producto
  * – tipo_producto en meta box + shortcode per-taller
  * – precios_medidas: helper para precio variable por medida
@@ -71,6 +73,7 @@ class DH_Talleres {
   notas           TEXT NULL,
   estado          VARCHAR(30) NOT NULL DEFAULT 'pendiente',
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at      DATETIME NULL DEFAULT NULL,
   PRIMARY KEY  (id),
   KEY taller_id (taller_id),
   KEY order_id (order_id),
@@ -79,6 +82,29 @@ class DH_Talleres {
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql );
+        update_option( 'dh_talleres_db_version', DH_TALLERES_DB_VERSION );
+    }
+
+    /**
+     * ALTER TABLE explícito para agregar columnas que dbDelta no detecta en algunas versiones.
+     */
+    public static function maybe_add_columns() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'dh_inscripciones';
+        $cols  = $wpdb->get_col( "SHOW COLUMNS FROM {$table}" );
+
+        if ( ! in_array( 'tipo_producto', $cols, true ) ) {
+            $wpdb->query( "ALTER TABLE {$table} ADD COLUMN tipo_producto VARCHAR(100) NOT NULL DEFAULT ''" );
+        }
+        if ( ! in_array( 'variantes', $cols, true ) ) {
+            $wpdb->query( "ALTER TABLE {$table} ADD COLUMN variantes TEXT NULL" );
+        }
+        if ( ! in_array( 'notas', $cols, true ) ) {
+            $wpdb->query( "ALTER TABLE {$table} ADD COLUMN notas TEXT NULL" );
+        }
+        if ( ! in_array( 'deleted_at', $cols, true ) ) {
+            $wpdb->query( "ALTER TABLE {$table} ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL" );
+        }
         update_option( 'dh_talleres_db_version', DH_TALLERES_DB_VERSION );
     }
 
@@ -502,10 +528,10 @@ class DH_Talleres {
         );
     }
 
-    public static function get_inscripciones( $taller_id = null, $turno = null, $extra_where = '' ) {
+    public static function get_inscripciones( $taller_id = null, $turno = null, $extra_where = '', $include_deleted = false ) {
         global $wpdb;
         $table  = $wpdb->prefix . 'dh_inscripciones';
-        $where  = '1=1';
+        $where  = $include_deleted ? '1=1' : '(deleted_at IS NULL)';
         $params = array();
         if ( $taller_id ) { $where .= ' AND taller_id = %d'; $params[] = absint( $taller_id ); }
         if ( $turno )     { $where .= ' AND turno = %s';     $params[] = $turno; }
@@ -513,6 +539,15 @@ class DH_Talleres {
         if ( ! empty( $params ) ) {
             return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE {$where} ORDER BY created_at DESC", ...$params ) );
         }
-        return $wpdb->get_results( "SELECT * FROM {$table} ORDER BY created_at DESC" );
+        return $wpdb->get_results( "SELECT * FROM {$table} WHERE {$where} ORDER BY created_at DESC" );
+    }
+
+    /**
+     * Devuelve las inscripciones en la papelera (soft-deleted).
+     */
+    public static function get_inscripciones_eliminadas() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'dh_inscripciones';
+        return $wpdb->get_results( "SELECT * FROM {$table} WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC" );
     }
 }
