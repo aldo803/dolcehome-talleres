@@ -1,0 +1,312 @@
+/* =====================================================
+   DH Talleres — Frontend CSS v1.3
+   ===================================================== */
+
+:root {
+  --dh-primary:   #8B5E3C;
+  --dh-primary-h: #6f4a2f;
+  --dh-accent:    #D4A96A;
+  --dh-bg:        #fdfaf7;
+  --dh-card-bg:   #ffffff;
+  --dh-border:    #e8ddd3;
+  --dh-text:      #2c2020;
+  --dh-muted:     #7a6b60;
+  --dh-green:     #3a9966;
+  --dh-radius:    14px;
+  --dh-shadow:    0 4px 24px rgba(139,94,60,.10);
+}
+
+/* ── Contenedor de talleres ─────────────────────── */
+.dh-talleres-container {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));
+  gap:28px; padding:10px 0 40px;
+}
+.dh-no-talleres { text-align:center; padding:40px 20px; color:var(--dh-muted); font-size:16px; }
+
+/* ── Card pública ────────────────────────────────── */
+.dh-taller-card-public {
+  position:relative; background:var(--dh-card-bg);
+  border:1px solid var(--dh-border); border-radius:var(--dh-radius);
+  box-shadow:var(--dh-shadow); overflow:hidden;
+  transition:transform .25s ease, box-shadow .25s ease;
+}
+.dh-taller-card-public:hover {
+  transform:translateY(-4px); box-shadow:0 10px 36px rgba(139,94,60,.18);
+}
+.dh-taller-card-public.dh-card-full { opacity:.75; }
+.dh-taller-card-public.dh-card-full:hover { transform:none; }
+
+.dh-ribbon {
+  position:absolute; top:18px; right:-28px; background:#888; color:#fff;
+  font-size:11px; font-weight:700; padding:5px 36px;
+  transform:rotate(45deg); letter-spacing:.5px; text-transform:uppercase;
+  box-shadow:0 2px 6px rgba(0,0,0,.25); z-index:2;
+}
+.dh-ribbon-full { background:var(--dh-primary); }
+
+.dh-card-body { padding:28px 24px; }
+.dh-card-icon  { font-size:40px; line-height:1; margin-bottom:12px; display:block; }
+.dh-card-title { font-size:22px; font-weight:800; color:var(--dh-primary); margin:0 0 16px; line-height:1.3; }
+.dh-card-desc  { font-size:14px; color:var(--dh-muted); margin:0 0 14px; line-height:1.5; }
+
+.dh-card-info { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--dh-muted); margin-bottom:6px; }
+.dh-card-info-sm { font-size:13px; }
+.dh-info-icon { font-size:15px; flex-shrink:0; }
+.dh-maps-link { color:var(--dh-primary); font-weight:600; text-decoration:none; font-size:13px; }
+.dh-maps-link:hover { text-decoration:underline; }
+
+/* Turnos */
+.dh-turnos-disponibles { display:flex; flex-direction:column; gap:8px; margin:18px 0; }
+.dh-turno-pill {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 14px; border-radius:8px;
+  font-size:14px; font-weight:600; border:1.5px solid;
+}
+.dh-turno-ok   { background:#fefce8; border-color:#fde68a; color:#92400e; }
+.dh-turno-full { background:#f9f9f9; border-color:#e0e0e0; color:#9e9e9e; }
+.dh-pill-badge { font-size:12px; font-weight:700; padding:3px 10px; border-radius:20px; }
+.dh-pill-badge.available { background:#dcfce7; color:#166534; }
+.dh-pill-badge.full      { background:#fee2e2; color:#991b1b; }
+
+/* Precios */
+.dh-card-prices {
+  display:flex; align-items:center; gap:12px; margin:18px 0 22px;
+  background:#fdf9f5; border:1px solid #f0e8de; border-radius:10px; padding:16px;
+}
+.dh-price-option { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.dh-price-label  { font-size:11px; color:var(--dh-muted); text-transform:uppercase; letter-spacing:.5px; font-weight:600; }
+.dh-price-amount { font-size:22px; font-weight:800; color:var(--dh-primary); }
+.dh-price-divider { font-size:12px; color:var(--dh-muted); font-weight:600; }
+.dh-price-featured .dh-price-amount { color:var(--dh-green); }
+
+/* CTA */
+.dh-btn-inscribirse {
+  display:block; width:100%; padding:16px;
+  background:linear-gradient(135deg,var(--dh-primary),var(--dh-accent));
+  color:#fff; font-size:16px; font-weight:700;
+  border:none; border-radius:10px; cursor:pointer; text-align:center;
+  transition:all .25s; letter-spacing:.3px;
+  box-shadow:0 4px 16px rgba(139,94,60,.25);
+}
+.dh-btn-inscribirse:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(139,94,60,.35); }
+.dh-btn-inscribirse:active { transform:translateY(0); }
+.dh-btn-disabled { background:#ccc; cursor:not-allowed; box-shadow:none; transform:none; }
+
+/* ═════════════════════════════════════════════════
+   MODAL DE INSCRIPCIÓN
+   ═════════════════════════════════════════════════ */
+.dh-modal-overlay {
+  /* Siempre flex para centrar; oculto con opacity+visibility+pointer-events */
+  display:flex; align-items:center; justify-content:center;
+  position:fixed; inset:0; z-index:99999;
+  background:rgba(20,10,5,.65); backdrop-filter:blur(4px); padding:16px;
+  opacity:0; visibility:hidden; pointer-events:none;
+  transition:opacity .25s ease, visibility .25s ease;
+}
+.dh-modal-overlay.dh-open {
+  opacity:1; visibility:visible; pointer-events:auto;
+}
+
+@keyframes dhSlideUp {
+  from { opacity:0; transform:translateY(30px) scale(.97); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
+}
+
+.dh-modal {
+  background:#fff; border-radius:18px;
+  width:100%; max-width:580px; max-height:92vh; overflow-y:auto;
+  padding:32px; position:relative;
+  box-shadow:0 24px 80px rgba(0,0,0,.25);
+  animation:dhSlideUp .25s ease;
+}
+.dh-modal::-webkit-scrollbar { width:4px; }
+.dh-modal::-webkit-scrollbar-thumb { background:var(--dh-border); border-radius:2px; }
+
+.dh-modal-close {
+  position:absolute; top:16px; right:16px;
+  background:#f5f5f5; border:none; width:32px; height:32px;
+  border-radius:50%; font-size:16px; cursor:pointer; color:#666;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .2s; line-height:1;
+}
+.dh-modal-close:hover { background:#e0e0e0; color:#333; }
+
+.dh-modal-header { display:flex; align-items:flex-start; gap:14px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid #f0ede9; }
+.dh-modal-emoji    { font-size:40px; line-height:1; flex-shrink:0; }
+.dh-modal-header h2 { margin:0; font-size:22px; font-weight:800; color:var(--dh-primary); }
+.dh-modal-subtitle  { margin:4px 0 0; color:var(--dh-muted); font-size:13px; }
+
+/* Secciones */
+.dh-form-section { margin-bottom:24px; }
+.dh-form-section-title {
+  font-size:13px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.8px; color:var(--dh-muted); margin:0 0 12px;
+}
+.dh-form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.dh-form-group { display:flex; flex-direction:column; gap:5px; }
+.dh-form-group label { font-size:13px; font-weight:600; color:var(--dh-text); }
+.dh-form-group label .req { color:#e53e3e; }
+.dh-form-group input {
+  padding:12px 14px; border:2px solid #e8e0d8; border-radius:8px;
+  font-size:14px; color:var(--dh-text);
+  transition:border-color .2s, box-shadow .2s; outline:none;
+}
+.dh-form-group input:focus { border-color:var(--dh-primary); box-shadow:0 0 0 3px rgba(139,94,60,.12); }
+.dh-form-group input.dh-error { border-color:#e53e3e; }
+.dh-form-group input::placeholder { color:#b0a89e; }
+
+/* Option cards */
+.dh-turno-selector,
+.dh-pago-selector  { display:grid; gap:10px; }
+.dh-turno-selector { grid-template-columns:1fr 1fr; }
+.dh-pago-selector  { grid-template-columns:1fr 1fr; }
+.dh-option-card {
+  display:block; cursor:pointer;
+  border:2px solid #e8e0d8; border-radius:10px; padding:14px;
+  transition:all .2s; background:#fdfaf7; user-select:none;
+}
+.dh-option-card input[type=radio] { display:none; }
+.dh-option-card:hover  { border-color:var(--dh-accent); background:#fef9f3; }
+.dh-option-card.selected { border-color:var(--dh-primary); background:#fef5ea; box-shadow:0 0 0 3px rgba(139,94,60,.10); }
+.dh-option-card.disabled { opacity:.45; cursor:not-allowed; background:#f5f5f5; }
+.dh-option-content { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.dh-option-icon    { font-size:22px; flex-shrink:0; }
+.dh-option-label   { font-size:14px; font-weight:700; color:var(--dh-text); }
+.dh-option-cupos   {
+  font-size:11px; font-weight:600; margin-left:auto;
+  padding:2px 8px; border-radius:20px; background:#dcfce7; color:#166534;
+}
+.dh-option-cupos.sin-cupos { background:#fee2e2; color:#991b1b; }
+
+/* Pago cards */
+.dh-pago-card .dh-option-content { justify-content:space-between; flex-wrap:nowrap; }
+.dh-pago-desc   { display:block; font-size:11px; color:var(--dh-muted); margin-top:2px; }
+.dh-pago-precio { font-size:18px; font-weight:800; color:var(--dh-primary); white-space:nowrap; }
+
+/* Variantes de material */
+.dh-variantes-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.dh-variante-select-group { display:flex; flex-direction:column; gap:5px; }
+.dh-variante-select-group label { font-size:13px; font-weight:600; color:var(--dh-text); }
+.dh-variante-select-group select {
+  padding:11px 13px; border:2px solid #e8e0d8; border-radius:8px;
+  font-size:14px; color:var(--dh-text); background:#fff;
+  cursor:pointer; outline:none; transition:border-color .2s;
+}
+.dh-variante-select-group select:focus { border-color:var(--dh-primary); }
+
+/* Error */
+.dh-form-error {
+  background:#fff5f5; border:1px solid #feb2b2; border-radius:8px;
+  padding:12px 16px; color:#c53030; font-size:13px; font-weight:600; margin-bottom:16px;
+}
+
+/* Botón confirmar */
+.dh-btn-confirmar {
+  display:block; width:100%; padding:17px;
+  background:linear-gradient(135deg,var(--dh-primary),var(--dh-accent));
+  color:#fff; font-size:16px; font-weight:700;
+  border:none; border-radius:10px; cursor:pointer;
+  transition:all .25s; box-shadow:0 4px 16px rgba(139,94,60,.30);
+  text-decoration:none; text-align:center; letter-spacing:.3px;
+}
+.dh-btn-confirmar:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 8px 24px rgba(139,94,60,.40); }
+.dh-btn-confirmar:disabled { opacity:.6; cursor:not-allowed; }
+.dh-form-disclaimer { font-size:11px; color:var(--dh-muted); text-align:center; margin-top:12px; margin-bottom:0; }
+
+/* Spinner inline */
+.dh-spinner-sm {
+  display:inline-block; width:14px; height:14px; margin-right:6px; vertical-align:middle;
+  border:2px solid rgba(255,255,255,.4); border-top-color:#fff;
+  border-radius:50%; animation:dhSpin .7s linear infinite;
+}
+@keyframes dhSpin { to { transform:rotate(360deg) } }
+
+/* ── PASO 2: PANTALLA DE CONFIRMACIÓN ────────────── */
+.dh-confirm-header { text-align:center; margin-bottom:24px; }
+.dh-confirm-icon   { font-size:60px; margin-bottom:12px; }
+.dh-confirm-header h2 { font-size:24px; font-weight:800; color:var(--dh-primary); margin:0 0 6px; }
+.dh-confirm-header p  { color:var(--dh-muted); margin:0; font-size:14px; }
+
+.dh-confirm-taller {
+  background:linear-gradient(135deg,var(--dh-primary),var(--dh-primary-h));
+  border-radius:12px; padding:20px; color:#fff; margin-bottom:16px;
+}
+.dh-confirm-taller-titulo { font-size:18px; font-weight:800; margin-bottom:10px; }
+.dh-confirm-taller-row    { display:flex; gap:8px; font-size:13px; margin-bottom:5px; opacity:.9; }
+.dh-confirm-taller-label  { opacity:.7; min-width:60px; }
+
+.dh-confirm-detalles {
+  background:#fdf9f5; border:1px solid #f0e8de;
+  border-radius:10px; padding:16px; margin-bottom:12px;
+}
+.dh-confirm-detalles-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--dh-primary); margin-bottom:10px; }
+.dh-confirm-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f0e8de; font-size:14px; }
+.dh-confirm-row:last-child { border-bottom:none; }
+.dh-confirm-lbl { color:var(--dh-muted); font-size:13px; }
+.dh-confirm-val { font-weight:700; }
+.dh-confirm-price { color:var(--dh-primary); font-size:20px; font-weight:800; }
+
+.dh-confirm-variantes { background:#fafafa; border:1px solid #e8e0d8; border-radius:10px; padding:16px; margin-bottom:12px; }
+.dh-confirm-var-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--dh-muted); margin-bottom:10px; }
+
+/* Calendario */
+.dh-cal-section { margin:16px 0; }
+.dh-cal-title   { font-size:13px; font-weight:700; color:var(--dh-text); margin:0 0 10px; }
+.dh-cal-btns    { display:flex; gap:10px; flex-wrap:wrap; }
+.dh-cal-btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 18px; border-radius:8px;
+  font-size:13px; font-weight:700; text-decoration:none;
+  transition:all .2s; flex:1; justify-content:center; border:2px solid;
+}
+.dh-cal-google { background:#fff; border-color:#4285F4; color:#4285F4; }
+.dh-cal-google:hover { background:#4285F4; color:#fff; }
+.dh-cal-ics    { background:#fff; border-color:var(--dh-primary); color:var(--dh-primary); }
+.dh-cal-ics:hover { background:var(--dh-primary); color:#fff; }
+
+.dh-confirm-cta { margin-top:20px; }
+
+/* ── Responsive ─────────────────────────────────── */
+@media (max-width: 640px) {
+  .dh-talleres-container { grid-template-columns:1fr; }
+  .dh-form-row           { grid-template-columns:1fr; }
+  .dh-turno-selector     { grid-template-columns:1fr; }
+  .dh-pago-selector      { grid-template-columns:1fr; }
+  .dh-variantes-grid     { grid-template-columns:1fr; }
+  .dh-modal              { padding:24px 18px; }
+  .dh-card-prices        { flex-direction:column; gap:8px; }
+  .dh-price-divider      { display:none; }
+  .dh-cal-btns           { flex-direction:column; }
+}
+
+/* ── Tags nivel / duración en card ──────────── */
+.dh-card-tags {
+  display: flex; gap: 7px; flex-wrap: wrap;
+  margin: 8px 0 12px;
+}
+.dh-card-tag {
+  font-size: 12px; font-weight: 600;
+  padding: 3px 11px; border-radius: 20px;
+  background: #f0ece7; color: var(--dh-muted);
+}
+.dh-tag-nivel { background: #e8f5e9; color: #2e7d32; }
+.dh-tag-tiempo { background: #fef9e7; color: #92400e; }
+
+/* ── Requisitos / info del taller ───────────── */
+.dh-card-requisitos {
+  background: #fdf9f5;
+  border: 1px solid #f0e8de;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 14px 0;
+}
+.dh-requisitos-title {
+  font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .5px;
+  color: var(--dh-primary); margin-bottom: 6px;
+}
+.dh-requisitos-text {
+  font-size: 13px; color: var(--dh-muted);
+  margin: 0; line-height: 1.6;
+}
